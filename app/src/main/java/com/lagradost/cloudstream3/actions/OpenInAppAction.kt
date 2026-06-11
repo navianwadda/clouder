@@ -66,7 +66,6 @@ fun makeTempM3U8Intent(
 
             when (link.uuid) {
                 CLEARKEY_UUID -> {
-                    // kid and key are stored as Base64url — decode back to hex for KODIPROP
                     val kid = link.kid
                     val key = link.key
                     if (kid != null && key != null) {
@@ -89,14 +88,18 @@ fun makeTempM3U8Intent(
                     }
                 }
             }
+        }
 
-            // Pass any custom headers as EXTVLCOPT
-            link.headers["User-Agent"]?.let {
-                text += "\n#EXTVLCOPT:http-user-agent=$it"
-            }
-            link.headers["Referer"]?.let {
-                text += "\n#EXTVLCOPT:http-referrer=$it"
-            }
+        // Pass all headers as EXTVLCOPT
+        val knownHeaders = mapOf(
+            "User-Agent" to "http-user-agent",
+            "Referer"    to "http-referrer",
+            "Cookie"     to "http-cookie",
+            "Origin"     to "http-origin",
+        )
+        link.headers.forEach { (key, value) ->
+            val optKey = knownHeaders[key] ?: "http-header-${key.lowercase().replace(" ", "-")}"
+            text += "\n#EXTVLCOPT:$optKey=$value"
         }
 
         text += "\n${link.url}"
@@ -145,10 +148,6 @@ abstract class OpenInAppAction(
         launchResult(intent)
     }
 
-    /**
-     * Before intent is sent, this function is called to put extra data into the intent.
-     * @see VideoClickAction.runAction
-     * */
     @Throws
     abstract suspend fun putExtra(
         context: Context,
@@ -158,15 +157,9 @@ abstract class OpenInAppAction(
         index: Int?
     )
 
-    /**
-     * This function is called when the app is opened again after the intent was sent.
-     * You can use it to for example update duration and position.
-     * @see updateDurationAndPosition
-     */
     @Throws
     abstract fun onResult(activity: Activity, intent: Intent?)
 
-    /** Safe version of onResult, we don't trust extension devs to not crash the app */
     fun onResultSafe(activity: Activity, intent: Intent?) {
         try {
             onResult(activity, intent)
