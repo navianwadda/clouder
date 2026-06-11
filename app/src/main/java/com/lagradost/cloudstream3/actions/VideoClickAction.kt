@@ -47,6 +47,7 @@ object VideoClickActionHolder {
         // Default
         PlayInBrowserAction(),
         CopyClipboardAction(),
+        SaveM3UAction(),
         ViewM3U8Action(),
         PlayMirrorAction(),
         // main support external apps
