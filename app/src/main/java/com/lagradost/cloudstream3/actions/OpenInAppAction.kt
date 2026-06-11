@@ -6,8 +6,8 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
-import com.lagradost.cloudstream3.CloudStreamApp.Companion.getKey
-import com.lagradost.cloudstream3.CloudStreamApp.Companion.setKey
+import com.lagradost.cloudstream3.AcraApplication.Companion.getKey
+import com.lagradost.cloudstream3.AcraApplication.Companion.setKey
 import com.lagradost.cloudstream3.R
 import com.lagradost.cloudstream3.mvvm.logError
 import com.lagradost.cloudstream3.ui.result.LinkLoadingResult
@@ -17,6 +17,11 @@ import com.lagradost.cloudstream3.utils.UiText
 import com.lagradost.cloudstream3.utils.txt
 import com.lagradost.cloudstream3.utils.AppContextUtils.isAppInstalled
 import com.lagradost.cloudstream3.utils.DataStoreHelper
+import android.util.Base64
+import com.lagradost.cloudstream3.utils.CLEARKEY_UUID
+import com.lagradost.cloudstream3.utils.DrmExtractorLink
+import com.lagradost.cloudstream3.utils.ExtractorLinkType
+import com.lagradost.cloudstream3.utils.WIDEVINE_UUID
 import java.io.File
 
 fun updateDurationAndPosition(position: Long, duration: Long) {
@@ -51,14 +56,51 @@ fun makeTempM3U8Intent(
     var text = "#EXTM3U\n#EXT-X-VERSION:3"
 
     result.links.forEach { link ->
-        text += "\n#EXTINF:0,${link.name}\n${link.url}"
-    }
+        text += "\n\n#EXTINF:-1,${link.name}"
 
-    //With subtitles it doesn't work for no reason :(
-    /*for (sub in result.subs) {
-        val normalizedName = sub.name.replace("[^a-zA-Z0-9 ]".toRegex(), "")
-        text += "\n#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"subs\",NAME=\"${normalizedName}\",DEFAULT=NO,AUTOSELECT=NO,FORCED=NO,LANGUAGE=\"${sub.languageCode}\",URI=\"${sub.url}\""
-    }*/
+        if (link is DrmExtractorLink) {
+            // Manifest type: mpd for DASH, hls for M3U8
+            val manifestType = if (link.type == ExtractorLinkType.DASH) "mpd" else "hls"
+            text += "\n#KODIPROP:inputstream=inputstream.adaptive"
+            text += "\n#KODIPROP:inputstream.adaptive.manifest_type=$manifestType"
+
+            when (link.uuid) {
+                CLEARKEY_UUID -> {
+                    // kid and key are stored as Base64url — decode back to hex for KODIPROP
+                    val kid = link.kid
+                    val key = link.key
+                    if (kid != null && key != null) {
+                        fun b64urlToHex(b64: String): String {
+                            val padded = b64 + "=".repeat((4 - b64.length % 4) % 4)
+                            return Base64.decode(padded, Base64.URL_SAFE or Base64.NO_WRAP)
+                                .joinToString("") { "%02x".format(it) }
+                        }
+                        val kidHex = b64urlToHex(kid)
+                        val keyHex = b64urlToHex(key)
+                        text += "\n#KODIPROP:inputstream.adaptive.license_type=clearkey"
+                        text += "\n#KODIPROP:inputstream.adaptive.license_key=$kidHex:$keyHex"
+                    }
+                }
+                WIDEVINE_UUID -> {
+                    val licenseUrl = link.licenseUrl
+                    if (licenseUrl != null) {
+                        text += "\n#KODIPROP:inputstream.adaptive.license_type=com.widevine.alpha"
+                        text += "\n#KODIPROP:inputstream.adaptive.license_key=$licenseUrl"
+                    }
+                }
+            }
+
+            // Pass any custom headers as EXTVLCOPT
+            link.headers["User-Agent"]?.let {
+                text += "\n#EXTVLCOPT:http-user-agent=$it"
+            }
+            link.headers["Referer"]?.let {
+                text += "\n#EXTVLCOPT:http-referrer=$it"
+            }
+        }
+
+        text += "\n${link.url}"
+    }
 
     text += "\n#EXT-X-ENDLIST"
     outputFile.writeText(text)
