@@ -1,0 +1,42 @@
+name: Unzip and Move to Root
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  unzip:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Find and unzip the project zip
+        run: |
+          ZIP_FILE=$(find . -maxdepth 1 -name "*.zip" | head -1)
+          if [ -z "$ZIP_FILE" ]; then
+            echo "No zip file found in root. Exiting."
+            exit 1
+          fi
+          echo "Found zip: $ZIP_FILE"
+          unzip -q "$ZIP_FILE" -d _unzipped
+
+      - name: Move contents to root
+        run: |
+          INNER_DIR=$(ls _unzipped/ | head -1)
+          echo "Inner folder: $INNER_DIR"
+          shopt -s dotglob
+          mv _unzipped/"$INNER_DIR"/* .
+          rm -rf _unzipped
+          rm -f *.zip
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: unzip and move project files to root"
+          git push
