@@ -1,7 +1,10 @@
 package com.lagradost.cloudstream3.actions.temp
 
+import android.content.ContentValues
 import android.content.Context
+import android.os.Build
 import android.os.Environment
+import android.provider.MediaStore
 import android.util.Base64
 import com.lagradost.cloudstream3.CommonActivity
 import com.lagradost.cloudstream3.actions.VideoClickAction
@@ -28,18 +31,11 @@ class SaveM3UAction : VideoClickAction() {
     ) {
         if (context == null) return
 
-        val dir = File(
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-            "CloudStream"
-        )
-        if (!dir.exists()) dir.mkdirs()
-
         val episodeName = sanitizeFilename(
             video.name?.takeIf { it.isNotBlank() } ?: video.headerName,
             removeSpaces = false
         )
         val fileName = "$episodeName.m3u"
-        val file = File(dir, fileName)
 
         var text = "#EXTM3U"
 
@@ -74,7 +70,6 @@ class SaveM3UAction : VideoClickAction() {
                 }
             }
 
-            // Pass all headers as EXTVLCOPT
             val knownHeaders = mapOf(
                 "User-Agent" to "http-user-agent",
                 "Referer"    to "http-referrer",
@@ -89,8 +84,31 @@ class SaveM3UAction : VideoClickAction() {
             text += "\n${link.url}"
         }
 
-        file.writeText(text)
-
-        CommonActivity.showToast("Saved to Downloads/CloudStream/$fileName")
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val values = ContentValues().apply {
+                    put(MediaStore.Downloads.DISPLAY_NAME, fileName)
+                    put(MediaStore.Downloads.MIME_TYPE, "audio/x-mpegurl")
+                    put(MediaStore.Downloads.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/CloudStream")
+                    put(MediaStore.Downloads.IS_PENDING, 1)
+                }
+                val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                    ?: throw Exception("Failed to create MediaStore entry")
+                context.contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) }
+                values.clear()
+                values.put(MediaStore.Downloads.IS_PENDING, 0)
+                context.contentResolver.update(uri, values, null, null)
+            } else {
+                val dir = File(
+                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                    "CloudStream"
+                )
+                if (!dir.exists()) dir.mkdirs()
+                File(dir, fileName).writeText(text)
+            }
+            CommonActivity.showToast("Saved to Downloads/CloudStream/$fileName")
+        } catch (e: Exception) {
+            CommonActivity.showToast("Failed to save: ${e.message}")
+        }
     }
 }
