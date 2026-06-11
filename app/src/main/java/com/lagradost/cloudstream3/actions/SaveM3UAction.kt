@@ -74,10 +74,17 @@ class SaveM3UAction : VideoClickAction() {
                 }
             }
 
-            link.headers["User-Agent"]?.let { text += "\n#EXTVLCOPT:http-user-agent=$it" }
-            link.headers["Referer"]?.let  { text += "\n#EXTVLCOPT:http-referrer=$it" }
-            link.headers["Cookie"]?.let   { text += "\n#EXTVLCOPT:http-cookie=$it" }
-            link.headers["Origin"]?.let   { text += "\n#EXTVLCOPT:http-origin=$it" }
+            // Pass all headers as EXTVLCOPT
+            val knownHeaders = mapOf(
+                "User-Agent" to "http-user-agent",
+                "Referer"    to "http-referrer",
+                "Cookie"     to "http-cookie",
+                "Origin"     to "http-origin",
+            )
+            link.headers.forEach { (key, value) ->
+                val optKey = knownHeaders[key] ?: "http-header-${key.lowercase().replace(" ", "-")}"
+                text += "\n#EXTVLCOPT:$optKey=$value"
+            }
 
             text += "\n${link.url}"
         }
