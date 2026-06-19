@@ -10,10 +10,10 @@ import com.lagradost.cloudstream3.CommonActivity
 import com.lagradost.cloudstream3.actions.VideoClickAction
 import com.lagradost.cloudstream3.ui.result.LinkLoadingResult
 import com.lagradost.cloudstream3.ui.result.ResultEpisode
-import com.lagradost.cloudstream3.utils.CLEARKEY_UUID
+import com.lagradost.cloudstream3.utils.CLEARKEY_DRM_UUID
 import com.lagradost.cloudstream3.utils.DrmExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
-import com.lagradost.cloudstream3.utils.WIDEVINE_UUID
+import com.lagradost.cloudstream3.utils.WIDEVINE_DRM_UUID
 import com.lagradost.cloudstream3.utils.downloader.DownloadFileManagement.sanitizeFilename
 import com.lagradost.cloudstream3.utils.txt
 import java.io.File
@@ -48,7 +48,7 @@ class SaveM3UAction : VideoClickAction() {
                 text += "\n#KODIPROP:inputstream.adaptive.manifest_type=$manifestType"
 
                 when (link.uuid) {
-                    CLEARKEY_UUID -> {
+                    CLEARKEY_DRM_UUID -> {
                         val kid = link.kid
                         val key = link.key
                         if (kid != null && key != null) {
@@ -61,7 +61,7 @@ class SaveM3UAction : VideoClickAction() {
                             text += "\n#KODIPROP:inputstream.adaptive.license_key=${b64urlToHex(kid)}:${b64urlToHex(key)}"
                         }
                     }
-                    WIDEVINE_UUID -> {
+                    WIDEVINE_DRM_UUID -> {
                         link.licenseUrl?.let { licenseUrl ->
                             text += "\n#KODIPROP:inputstream.adaptive.license_type=com.widevine.alpha"
                             text += "\n#KODIPROP:inputstream.adaptive.license_key=$licenseUrl"
