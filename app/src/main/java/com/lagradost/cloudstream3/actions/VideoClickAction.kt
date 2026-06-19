@@ -141,6 +141,14 @@ abstract class VideoClickAction {
             return
         }
 
+        // Block plugin-registered actions from opening external browser URLs
+        if (sourcePlugin != null && intent.action == Intent.ACTION_VIEW) {
+            val scheme = intent.data?.scheme?.lowercase()
+            if (scheme == "http" || scheme == "https") {
+                throw ErrorLoadingException("Plugin '$sourcePlugin' attempted to open a browser URL, which is blocked.")
+            }
+        }
+
         uiThread {
             MainActivity.activityResultLauncher?.launch(intent,options)
         }
@@ -152,6 +160,14 @@ abstract class VideoClickAction {
     suspend fun launch(intent : Intent?, bundle : Bundle? = null) {
         if (intent == null) {
             return
+        }
+
+        // Block plugin-registered actions from opening external browser URLs
+        if (sourcePlugin != null && intent.action == Intent.ACTION_VIEW) {
+            val scheme = intent.data?.scheme?.lowercase()
+            if (scheme == "http" || scheme == "https") {
+                throw ErrorLoadingException("Plugin '$sourcePlugin' attempted to open a browser URL, which is blocked.")
+            }
         }
 
         uiThread {
